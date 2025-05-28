@@ -1,0 +1,308 @@
+import { ref, computed } from "vue";
+import { defineStore } from "pinia";
+
+// 定義數據類型
+export interface FamilyInfo {
+  familyName: string;
+  budgetYear: number;
+}
+
+export interface IncomeInfo {
+  husband: {
+    monthlyIncome: number;
+    bonusAmount: number;
+    bonusMonth: number; // 1-12
+  };
+  wife: {
+    monthlyIncome: number;
+    bonusAmount: number;
+    bonusMonth: number; // 1-12
+  };
+}
+
+export interface MonthlyExpenses {
+  housing: number;
+  food: number;
+  transportation: number;
+  healthcare: number;
+  education: number;
+  entertainment: number;
+  shopping: number;
+  insurance: number;
+  other: number;
+}
+
+export interface ExpenseCategory {
+  id: string;
+  name: string;
+  amount: number;
+  period: "monthly" | "quarterly" | "yearly" | "one-time";
+  startYear: number;
+  endYear?: number;
+  description?: string;
+}
+
+export interface CalculationResult {
+  totalSavingsNeeded: number;
+  monthlyPayment: number;
+  totalInterest: number;
+  totalPayment: number;
+  downPayment: number;
+  remainingSavingsAfterDownPayment: number;
+  yearlyProjection: YearlyProjection[];
+}
+
+export interface YearlyProjection {
+  year: number;
+  age: number;
+  income: number;
+  expenses: number;
+  loanPayment: number;
+  savings: number;
+  cumulativeSavings: number;
+  emergencyFund: number;
+}
+
+export const useFinancialPlanStore = defineStore("financialPlan", () => {
+  // 狀態
+  const currentStep = ref(1);
+  const personalInfo = ref<PersonalInfo>({
+    age: 30,
+    retirementAge: 65,
+    currentSavings: 1000000,
+    monthlyIncome: 80000,
+    expectedSalaryGrowth: 3,
+    jobStability: "medium",
+  });
+
+  const propertyInfo = ref<PropertyInfo>({
+    propertyPrice: 30000000,
+    downPaymentRatio: 20,
+    loanYears: 30,
+    interestRate: 2.1,
+    location: "台北市內湖區",
+  });
+
+  const monthlyExpenses = ref<MonthlyExpenses>({
+    housing: 15000,
+    food: 12000,
+    transportation: 3000,
+    healthcare: 2000,
+    education: 5000,
+    entertainment: 5000,
+    shopping: 8000,
+    insurance: 3000,
+    other: 5000,
+  });
+
+  const expenseCategories = ref<ExpenseCategory[]>([]);
+
+  // 計算屬性
+  const totalMonthlyExpenses = computed(() => {
+    return Object.values(monthlyExpenses.value).reduce((sum, expense) => sum + expense, 0);
+  });
+
+  const downPayment = computed(() => {
+    return propertyInfo.value.propertyPrice * (propertyInfo.value.downPaymentRatio / 100);
+  });
+
+  const loanAmount = computed(() => {
+    return propertyInfo.value.propertyPrice - downPayment.value;
+  });
+
+  const monthlyLoanPayment = computed(() => {
+    const principal = loanAmount.value;
+    const monthlyRate = propertyInfo.value.interestRate / 100 / 12;
+    const numberOfPayments = propertyInfo.value.loanYears * 12;
+
+    if (monthlyRate === 0) {
+      return principal / numberOfPayments;
+    }
+
+    return (
+      (principal * (monthlyRate * Math.pow(1 + monthlyRate, numberOfPayments))) /
+      (Math.pow(1 + monthlyRate, numberOfPayments) - 1)
+    );
+  });
+
+  const totalInterest = computed(() => {
+    return monthlyLoanPayment.value * propertyInfo.value.loanYears * 12 - loanAmount.value;
+  });
+
+  const yearsToRetirement = computed(() => {
+    return personalInfo.value.retirementAge - personalInfo.value.age;
+  });
+
+  const monthlySavingsCapacity = computed(() => {
+    return personalInfo.value.monthlyIncome - totalMonthlyExpenses.value - monthlyLoanPayment.value;
+  });
+
+  // 詳細的十年規劃計算
+  const tenYearProjection = computed(() => {
+    const projection: YearlyProjection[] = [];
+    let currentAge = personalInfo.value.age;
+    let currentIncome = personalInfo.value.monthlyIncome * 12;
+    let cumulativeSavings = personalInfo.value.currentSavings;
+
+    for (let year = 1; year <= 10; year++) {
+      // 計算當年收入（考慮薪資成長）
+      const yearlyIncome =
+        currentIncome * Math.pow(1 + personalInfo.value.expectedSalaryGrowth / 100, year - 1);
+
+      // 計算當年支出
+      const yearlyExpenses = totalMonthlyExpenses.value * 12;
+      const yearlyLoanPayment = monthlyLoanPayment.value * 12;
+
+      // 計算當年儲蓄
+      const yearlySavings = yearlyIncome - yearlyExpenses - yearlyLoanPayment;
+      cumulativeSavings += yearlySavings;
+
+      // 緊急預備金（建議為年支出的6個月）
+      const emergencyFund = (yearlyExpenses + yearlyLoanPayment) / 2;
+
+      projection.push({
+        year,
+        age: currentAge + year,
+        income: yearlyIncome,
+        expenses: yearlyExpenses,
+        loanPayment: yearlyLoanPayment,
+        savings: yearlySavings,
+        cumulativeSavings,
+        emergencyFund,
+      });
+    }
+
+    return projection;
+  });
+
+  const calculationResult = computed<CalculationResult>(() => {
+    return {
+      totalSavingsNeeded: downPayment.value,
+      monthlyPayment: monthlyLoanPayment.value,
+      totalInterest: totalInterest.value,
+      totalPayment: propertyInfo.value.propertyPrice + totalInterest.value,
+      downPayment: downPayment.value,
+      remainingSavingsAfterDownPayment: Math.max(
+        0,
+        personalInfo.value.currentSavings - downPayment.value
+      ),
+      yearlyProjection: tenYearProjection.value,
+    };
+  });
+
+  // 方法
+  function nextStep() {
+    if (currentStep.value < 4) {
+      currentStep.value++;
+    }
+  }
+
+  function prevStep() {
+    if (currentStep.value > 1) {
+      currentStep.value--;
+    }
+  }
+
+  function setStep(step: number) {
+    if (step >= 1 && step <= 4) {
+      currentStep.value = step;
+    }
+  }
+
+  function updatePersonalInfo(info: Partial<PersonalInfo>) {
+    personalInfo.value = { ...personalInfo.value, ...info };
+  }
+
+  function updatePropertyInfo(info: Partial<PropertyInfo>) {
+    propertyInfo.value = { ...propertyInfo.value, ...info };
+  }
+
+  function updateMonthlyExpenses(expenses: Partial<MonthlyExpenses>) {
+    monthlyExpenses.value = { ...monthlyExpenses.value, ...expenses };
+  }
+
+  function addExpenseCategory(category: Omit<ExpenseCategory, "id">) {
+    const newCategory: ExpenseCategory = {
+      ...category,
+      id: Date.now().toString(),
+    };
+    expenseCategories.value.push(newCategory);
+  }
+
+  function removeExpenseCategory(id: string) {
+    const index = expenseCategories.value.findIndex((cat) => cat.id === id);
+    if (index !== -1) {
+      expenseCategories.value.splice(index, 1);
+    }
+  }
+
+  function updateExpenseCategory(id: string, updates: Partial<ExpenseCategory>) {
+    const category = expenseCategories.value.find((cat) => cat.id === id);
+    if (category) {
+      Object.assign(category, updates);
+    }
+  }
+
+  function resetCalculator() {
+    currentStep.value = 1;
+    personalInfo.value = {
+      age: 30,
+      retirementAge: 65,
+      currentSavings: 1000000,
+      monthlyIncome: 80000,
+      expectedSalaryGrowth: 3,
+      jobStability: "medium",
+    };
+    propertyInfo.value = {
+      propertyPrice: 30000000,
+      downPaymentRatio: 20,
+      loanYears: 30,
+      interestRate: 2.1,
+      location: "台北市內湖區",
+    };
+    monthlyExpenses.value = {
+      housing: 15000,
+      food: 12000,
+      transportation: 3000,
+      healthcare: 2000,
+      education: 5000,
+      entertainment: 5000,
+      shopping: 8000,
+      insurance: 3000,
+      other: 5000,
+    };
+    expenseCategories.value = [];
+  }
+
+  return {
+    // 狀態
+    currentStep,
+    personalInfo,
+    propertyInfo,
+    monthlyExpenses,
+    expenseCategories,
+
+    // 計算屬性
+    totalMonthlyExpenses,
+    downPayment,
+    loanAmount,
+    monthlyLoanPayment,
+    totalInterest,
+    yearsToRetirement,
+    monthlySavingsCapacity,
+    tenYearProjection,
+    calculationResult,
+
+    // 方法
+    nextStep,
+    prevStep,
+    setStep,
+    updatePersonalInfo,
+    updatePropertyInfo,
+    updateMonthlyExpenses,
+    addExpenseCategory,
+    removeExpenseCategory,
+    updateExpenseCategory,
+    resetCalculator,
+  };
+});
