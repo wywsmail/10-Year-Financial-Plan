@@ -10,7 +10,7 @@ const STORAGE_KEYS = {
 } as const;
 
 // localStorage 工具函數
-const saveToStorage = (key: string, data: any) => {
+const saveToStorage = (key: string, data: unknown) => {
   try {
     localStorage.setItem(key, JSON.stringify(data));
   } catch (error) {
@@ -96,6 +96,13 @@ export interface BudgetSummary {
     wife: number;
     shared: number;
   };
+}
+
+export interface ImportData {
+  familyInfo?: FamilyInfo;
+  incomeInfo?: IncomeInfo;
+  expenseItems?: ExpenseItem[];
+  currentStep?: number;
 }
 
 export const useBudgetPlanStore = defineStore("budgetPlan", () => {
@@ -237,7 +244,7 @@ export const useBudgetPlanStore = defineStore("budgetPlan", () => {
 
       expenseItems.value.forEach((item) => {
         let shouldInclude = false;
-        let amount = item.amount;
+        const amount = item.amount;
 
         switch (item.frequency) {
           case "monthly":
@@ -425,7 +432,7 @@ export const useBudgetPlanStore = defineStore("budgetPlan", () => {
   }
 
   // 匯入資料
-  function importData(data: any) {
+  function importData(data: ImportData) {
     try {
       if (data.familyInfo) {
         familyInfo.value = data.familyInfo;

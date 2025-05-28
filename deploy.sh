@@ -21,6 +21,6 @@ git commit -m 'deploy'
 # git push -f git@github.com:<USERNAME>/<USERNAME>.github.io.git main
 
 # 如果發布到 https://<USERNAME>.github.io/<REPO>
-git push -f git@github.com:alchalade/10-Year-Financial-Plan.git main:gh-pages
+git push -f https://github.com/wywsmail/10-Year-Financial-Plan.git main:gh-pages
 
 cd -

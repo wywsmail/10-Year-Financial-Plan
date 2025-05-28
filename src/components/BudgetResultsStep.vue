@@ -45,7 +45,12 @@
                 <th>{{ store.incomeInfo.husband.name }}收入</th>
                 <th>{{ store.incomeInfo.wife.name }}收入</th>
                 <th>總收入</th>
+                <th>{{ store.incomeInfo.husband.name }}支出</th>
+                <th>{{ store.incomeInfo.wife.name }}支出</th>
+                <th>共同支出</th>
                 <th>總支出</th>
+                <th>{{ store.incomeInfo.husband.name }}餘額</th>
+                <th>{{ store.incomeInfo.wife.name }}餘額</th>
                 <th>當月結餘</th>
                 <th>累積結餘</th>
               </tr>
@@ -60,7 +65,16 @@
                 <td>NT$ {{ formatNumber(month.income.husbandIncome) }}</td>
                 <td>NT$ {{ formatNumber(month.income.wifeIncome) }}</td>
                 <td class="income-cell">NT$ {{ formatNumber(month.income.totalIncome) }}</td>
-                <td class="expense-cell">NT$ {{ formatNumber(month.expenses.totalExpenses) }}</td>
+                <td class="expense-cell">NT$ {{ formatNumber(month.expenses.husbandExpenses) }}</td>
+                <td class="expense-cell">NT$ {{ formatNumber(month.expenses.wifeExpenses) }}</td>
+                <td class="expense-cell shared">NT$ {{ formatNumber(month.expenses.sharedExpenses) }}</td>
+                <td class="expense-cell total">NT$ {{ formatNumber(month.expenses.totalExpenses) }}</td>
+                <td class="balance-cell husband" :class="{ negative: getHusbandBalance(month) < 0 }">
+                  NT$ {{ formatNumber(getHusbandBalance(month)) }}
+                </td>
+                <td class="balance-cell wife" :class="{ negative: getWifeBalance(month) < 0 }">
+                  NT$ {{ formatNumber(getWifeBalance(month)) }}
+                </td>
                 <td class="balance-cell" :class="{ negative: month.netIncome < 0 }">
                   NT$ {{ formatNumber(month.netIncome) }}
                 </td>
@@ -145,6 +159,68 @@
         </div>
       </div>
 
+      <!-- 個人可支出餘額總結 -->
+      <div class="personal-balance-summary">
+        <h3>個人可支出餘額總結</h3>
+        <div class="balance-summary-cards">
+          <div class="balance-card husband">
+            <div class="balance-header">
+              <h4>{{ store.incomeInfo.husband.name }}全年可支出餘額</h4>
+            </div>
+            <div class="balance-content">
+              <p class="balance-amount" :class="{ negative: getAnnualHusbandBalance() < 0 }">
+                NT$ {{ formatNumber(getAnnualHusbandBalance()) }}
+              </p>
+              <p class="balance-monthly">
+                每月平均：NT$ {{ formatNumber(getAnnualHusbandBalance() / 12) }}
+              </p>
+              <div class="balance-breakdown">
+                <div class="breakdown-item">
+                  <span>年收入：</span>
+                  <span>NT$ {{ formatNumber(getAnnualHusbandIncome()) }}</span>
+                </div>
+                <div class="breakdown-item">
+                  <span>個人支出：</span>
+                  <span>NT$ {{ formatNumber(store.budgetSummary.expensesByCategory.husband) }}</span>
+                </div>
+                <div class="breakdown-item">
+                  <span>共同支出分攤：</span>
+                  <span>NT$ {{ formatNumber(store.budgetSummary.expensesByCategory.shared / 2) }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="balance-card wife">
+            <div class="balance-header">
+              <h4>{{ store.incomeInfo.wife.name }}全年可支出餘額</h4>
+            </div>
+            <div class="balance-content">
+              <p class="balance-amount" :class="{ negative: getAnnualWifeBalance() < 0 }">
+                NT$ {{ formatNumber(getAnnualWifeBalance()) }}
+              </p>
+              <p class="balance-monthly">
+                每月平均：NT$ {{ formatNumber(getAnnualWifeBalance() / 12) }}
+              </p>
+              <div class="balance-breakdown">
+                <div class="breakdown-item">
+                  <span>年收入：</span>
+                  <span>NT$ {{ formatNumber(getAnnualWifeIncome()) }}</span>
+                </div>
+                <div class="breakdown-item">
+                  <span>個人支出：</span>
+                  <span>NT$ {{ formatNumber(store.budgetSummary.expensesByCategory.wife) }}</span>
+                </div>
+                <div class="breakdown-item">
+                  <span>共同支出分攤：</span>
+                  <span>NT$ {{ formatNumber(store.budgetSummary.expensesByCategory.shared / 2) }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="navigation">
         <div class="nav-left">
           <button @click="store.prevStep()" class="btn btn-secondary">上一步</button>
@@ -171,7 +247,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { useBudgetPlanStore } from "../stores/budgetPlan";
+import { useBudgetPlanStore, type MonthlyBudget } from "../stores/budgetPlan";
 
 const store = useBudgetPlanStore();
 const fileInput = ref<HTMLInputElement>();
@@ -333,6 +409,48 @@ function importData(event: Event) {
 
   reader.readAsText(file);
 }
+
+// 計算先生的可支出餘額（收入 - 個人支出 - 共同支出的一半）
+const getHusbandBalance = (month: MonthlyBudget) => {
+  const sharedHalf = month.expenses.sharedExpenses / 2;
+  return month.income.husbandIncome - month.expenses.husbandExpenses - sharedHalf;
+};
+
+// 計算太太的可支出餘額（收入 - 個人支出 - 共同支出的一半）
+const getWifeBalance = (month: MonthlyBudget) => {
+  const sharedHalf = month.expenses.sharedExpenses / 2;
+  return month.income.wifeIncome - month.expenses.wifeExpenses - sharedHalf;
+};
+
+// 計算先生的年收入
+const getAnnualHusbandIncome = () => {
+  return store.budgetSummary.monthlyBreakdown.reduce(
+    (total, month) => total + month.income.husbandIncome, 
+    0
+  );
+};
+
+// 計算太太的年收入
+const getAnnualWifeIncome = () => {
+  return store.budgetSummary.monthlyBreakdown.reduce(
+    (total, month) => total + month.income.wifeIncome, 
+    0
+  );
+};
+
+// 計算先生的全年可支出餘額
+const getAnnualHusbandBalance = () => {
+  return getAnnualHusbandIncome() - 
+         store.budgetSummary.expensesByCategory.husband - 
+         (store.budgetSummary.expensesByCategory.shared / 2);
+};
+
+// 計算太太的全年可支出餘額
+const getAnnualWifeBalance = () => {
+  return getAnnualWifeIncome() - 
+         store.budgetSummary.expensesByCategory.wife - 
+         (store.budgetSummary.expensesByCategory.shared / 2);
+};
 </script>
 
 <style scoped lang="scss">
@@ -438,13 +556,14 @@ function importData(event: Event) {
     .breakdown-table {
       width: 100%;
       border-collapse: collapse;
-      min-width: 800px;
+      min-width: 1200px; // 增加最小寬度以容納更多欄位
 
       th,
       td {
-        padding: 0.75rem 1rem;
+        padding: 0.5rem 0.75rem; // 稍微減小 padding 以節省空間
         text-align: right;
         border-bottom: 1px solid #e5e7eb;
+        font-size: 0.9rem; // 稍微減小字體
       }
 
       th {
@@ -452,6 +571,7 @@ function importData(event: Event) {
         font-weight: 600;
         color: #374151;
         text-align: center;
+        font-size: 0.85rem; // 標題字體稍小
       }
 
       .month-cell {
@@ -467,9 +587,33 @@ function importData(event: Event) {
       .expense-cell {
         color: #dc2626;
         font-weight: 600;
+        
+        &.shared {
+          color: #0891b2; // 共同支出使用不同顏色
+        }
+        
+        &.total {
+          color: #dc2626;
+          border-left: 2px solid #dc2626;
+        }
       }
 
-      .balance-cell,
+      .balance-cell {
+        font-weight: 600;
+        
+        &.husband {
+          color: #3b82f6;
+        }
+        
+        &.wife {
+          color: #ec4899;
+        }
+
+        &.negative {
+          color: #dc2626;
+        }
+      }
+      
       .cumulative-cell {
         font-weight: 600;
 
@@ -614,6 +758,101 @@ function importData(event: Event) {
           color: #6b7280;
           margin: 0;
           line-height: 1.5;
+        }
+      }
+    }
+  }
+
+  .personal-balance-summary {
+    margin-bottom: 2rem;
+
+    h3 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      color: #374151;
+    }
+
+    .balance-summary-cards {
+      display: grid;
+      gap: 1.5rem;
+
+      @media (min-width: 768px) {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .balance-card {
+        background: white;
+        border: 2px solid #e5e7eb;
+        border-radius: 1rem;
+        padding: 1.5rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+
+        &.husband {
+          border-left: 4px solid #3b82f6;
+          background: linear-gradient(135deg, #eff6ff 0%, #ffffff 100%);
+        }
+
+        &.wife {
+          border-left: 4px solid #ec4899;
+          background: linear-gradient(135deg, #fdf2f8 0%, #ffffff 100%);
+        }
+
+        .balance-header {
+          margin-bottom: 1rem;
+
+          h4 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #374151;
+            margin: 0;
+          }
+        }
+
+        .balance-content {
+          .balance-amount {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #059669;
+            margin: 0 0 0.5rem 0;
+
+            &.negative {
+              color: #dc2626;
+            }
+          }
+
+          .balance-monthly {
+            font-size: 1rem;
+            color: #6b7280;
+            margin: 0 0 1rem 0;
+            font-style: italic;
+          }
+
+          .balance-breakdown {
+            border-top: 1px solid #e5e7eb;
+            padding-top: 1rem;
+
+            .breakdown-item {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              padding: 0.25rem 0;
+              font-size: 0.9rem;
+
+              &:not(:last-child) {
+                border-bottom: 1px solid #f3f4f6;
+              }
+
+              span:first-child {
+                color: #6b7280;
+              }
+
+              span:last-child {
+                font-weight: 600;
+                color: #374151;
+              }
+            }
+          }
         }
       }
     }
